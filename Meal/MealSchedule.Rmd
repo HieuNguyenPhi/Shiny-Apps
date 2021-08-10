@@ -1,0 +1,326 @@
+---
+title: "Meal Schedule - Hieu NP"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: scroll
+    theme: yeti
+runtime: shiny
+---
+
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+```
+
+Planning {data-navmenu="Analysis"}
+==================================
+
+Sidebar {.sidebar}
+-----------------------------------------------------------------------
+
+### Input
+
+```{r}
+column(6,numericInput("age", "Tuổi (năm)", "26"))
+column(6,numericInput("weight", "Cân nặng (kg)", "59"))
+column(6,numericInput("height", "Chiều cao (cm)", "160"))
+column(6,selectInput("sex", "Giới tính", choices = c("Nam","Nữ")))
+column(12,selectInput("pal", "Lối sống", choices = c("Không hoạt động","Ít vận động", "Hoạt động vừa phải (1-3 lần/ tuần)", "Hoạt động mạnh (3-5 lần/ tuần)", "Năng động (6-7 lần/ tuần)", "Cực kỳ năng động (>7 lần/ tuần)")))
+column(12,selectInput("goal", "Mục tiêu", choices = c("Tăng Cân","Giữ cân", "Tăng cơ Giảm mỡ")))
+column(6,actionButton("go", "Kết quả"))
+```
+
+Row {data-width=650}
+-----------------------------------------------------------------------
+
+
+### Basic Output
+
+```{r}
+pal <- eventReactive(input$go,{
+  c <- c("Không hoạt động","Ít vận động", "Hoạt động vừa phải (1-3 lần/ tuần)", "Hoạt động mạnh (3-5 lần/ tuần)", "Năng động (6-7 lần/ tuần)", "Cực kỳ năng động (>7 lần/ tuần)")
+  if (input$pal == c[1]){
+    0.7
+  } else if (input$pal == c[2]) {
+    1.2
+  } else if (input$pal == c[3]) {
+    1.545
+  } else if (input$pal == c[4]) {
+    1.845
+  } else if (input$pal == c[5]) {
+    2.25
+  } else {
+    2.7
+  }
+})
+sex <- eventReactive(input$go,{
+  c <- c("Nam","Nữ")
+  if (input$sex == c[1]) {
+    "M"
+  } else {
+    "F"
+  }
+})
+goal <- eventReactive(input$go,{
+   c <- c("Tăng Cân","Giữ cân", "Tăng cơ Giảm mỡ")
+   if (input$goal == c[1]) {
+     c(0.3,0.2) #p, f
+     #data.frame(p = 0.3, f = 0.2, c = 0.5)
+   } else if (input$goal == c[2]) {
+     c(0.3,0.3)
+     #data.frame(p = 0.3, f = 0.3, c = 0.4)
+   } else if (input$goal == c[3]) {
+     c(0.5,0.3)
+     #data.frame(p = 0.5, f = 0.3, c = 0.2)
+   }
+})
+
+benchmark <- eventReactive(input$go,{
+  bmr <- ifelse(sex() == "M", (10*input$weight) + (6.25*input$height) - (5*input$age) + 5,
+              (10*input$weight) + (6.25*input$height) - (5*input$age) - 161)
+  tdee <- bmr * pal()
+  protein <- a <- tdee*goal()[1] / 4
+  protein <- max(2.2* input$weight, tdee*goal()[1]/4)
+  fat <- tdee*goal()[2] / 9
+  carb <- (tdee - protein * 4 - fat * 9)/4
+  fi <- 25
+  if (input$sex == "M") {
+    if (input$age < 69) {
+      fe <- 7.9
+    } else {
+      fe <- 7.3
+    }
+  } else{
+    if (input$age <= 49) {
+      fe <- 17.4
+    } else if (input$age <= 69) {
+      fe <- 6.7
+    } else {
+      fe <- 6.3
+    }
+  }
+  
+  canxi <- ifelse(input$age <= 49, 700, 1000)
+  phospho <- 1.1 * canxi
+  na <- 2.400
+  k <- 99
+  b.ca <- 10000
+  
+  if (input$sex == "M") {
+    a <- 600
+  } else{
+    if (input$age <= 60) {
+      a <- 500
+    } else {
+      a <- 600
+    }
+  }
+  b1 <- 3
+  c <- 70
+  data.frame(bmr = round(bmr,0), tdee = round(tdee,0), protein = round(protein,2), fat = round(fat,2), carb = round(carb,2),
+             canxi = canxi, phospho = phospho, fe = fe, na = na, k = k, b.ca = b.ca, a = a, b1 = b1, c=c)
+})
+  
+DT::renderDataTable({
+  DT::datatable(t(benchmark()), colnames = "", rownames = c("Tỷ lệ trao đổi chất cơ bản","Tổng chi tiêu năng lượng hằng ngày", "Protein khuyến nghị (g/ngày)","Fat khuyến nghị (g/ngày)","Carbs khuyến nghị (g/ngày)","Canxi (mg/ngày)", "Phospho (mg/ngày)", "Sắt (mg/ngày)","Natri (mg/ ngày)", "Kali (mg/ ngày)","Beta Carotene (mcg/ ngày)", "Vitamin A (mcg/ ngày)", "Vitamin B1 (mg/ ngày", "Vitamin C (mg/ngày)"))
+})
+```
+
+### Schedule
+
+```{r}
+toc <- read.csv("ToC.csv", header = T)
+tc <- read.csv("TC.csv", header = T)
+sc <- read.csv("SC.csv", header = T)
+tp <- read.csv("TP.csv", header = T)
+bdt <- rbind(sc,tc,tp,toc)
+dmenu <- data.frame(NAME = c(sample(sc[,1],1),sample(tp[,1],1),sample(tc[,1],1),sample(tp[,1],1),sample(toc[,1],1),"Cơm trắng"))
+menu <- data.frame(Mon = rep(NA,6), Tue = rep(NA,6), Wed = rep(NA,6), Thu = rep(NA,6),Fri = rep(NA,6),Sat = rep(NA,6), Sun = rep(NA,6)) 
+dmenu <- merge(dmenu , bdt, by = "NAME")
+cri <- colSums(dmenu[,-1])
+crimenu <- data.frame(Mon = rep(NA,15), Tue = rep(NA,15), Wed = rep(NA,15), Thu = rep(NA,15),Fri = rep(NA,15),Sat = rep(NA,15), Sun = rep(NA,15)) 
+df <- eventReactive(input$go,{
+  
+  for (i in (1:7)){
+    cri <- rep(0,15)
+    while(((cri[1] > benchmark()[1,2] ) & (cri[2] > (benchmark()[1,3] - 100))) != TRUE ){
+  dmenu <- data.frame(NAME = c(sample(sc[,1],1),sample(tp[,1],1),sample(tc[,1],1),sample(tp[,1],1),sample(toc[,1],1),"Cơm trắng"))
+  dmenu <- merge(dmenu , bdt, by = "NAME")
+  cri <- colSums(dmenu[,-1])
+  }
+  menu[,i] <- dmenu[,1]
+  crimenu[,i] <- cri
+  }
+  list(menu = menu, crimenu = crimenu)
+  
+})
+
+DT::renderDataTable({
+  DT::datatable(df()$menu)
+})
+
+```
+
+Row {data-width=650}
+-----------------------------------------------------------------------
+
+### Estimated Nutrition Information
+
+```{r}
+DT::renderDataTable({
+  DT::datatable(df()$crimenu, rownames = c("Năng lượng","Protein","Fat","Carbs","Xơ","Cholesterol","Canxi","Phospho","Sắt","Natri","Kali","Beta Carotene","Vitamin A","Vitamin B1","Vitamin C"))
+})
+```
+
+Nutrition Information
+==================================
+
+Row {data-width=650}
+-----------------------------------------------------------------------
+
+### Các nguyên tố Kiềm
+
+Trong dịch nội bào, có 4 loại nguyên tố Kiềm (Na -Natri, K -Kali ,Ca -Canxi, Mg - Magnesium ) ở trong điều kiện Kiềm. Kiềm cũng có trong các chất dinh dưỡng do máu, hormone và chất thải của quá trình chuyển hóa mang lại. Những chất dinh dưỡng này đi vào bên trong của các tế bào ,qua màng tế bào để nuôi tế bào. Khả năng đi qua này phụ thuộc vào số lượng và tỉ lệ của điều kiện ion của 4 nguyên tố Kiềm. Đây là áp xuất thẩm thấu của màng tế bào.
+
+Nói khác đi, khi 4 nguyên tố kiềm có 1 lượng thích hợp, với 1 tỉ lệ thích hợp, thì tế bào sẽ hấp thu chất dinh dưỡng ở mức cao nhất, và lức này ta có sức khỏe tốt nhất. Nếu các tế bào ốm yếu ta cũng ốm. Do vậy, điều kiện sức khỏe của chúng ta là phụ thuộc vào điều kiện của nguyên tố Kiềm trong dịch cơ thể.
+
+Mặc dù trong quá trình chuyển hóa cơ thể, có thể sinh ra nhiều axit đi nữa, thì cả bốn nguyên tố kiềm nói trên sẽ luôn luôn giữ ổn định độ kiềm trong máu và trong dịch cơ thể. Tuy vậy, sức sống và khả năng kháng khuẩn của tế bào sẽ được nhân lên khi tính kiềm chủ yếu là Ca (hoặc Na) , nhiều hơn là K (hoặc Mg).
+
+### Sắt - Nguyên tố tạo Kiềm
+
+Sắt là nguyên tố phổ biến trong tự nhiên, quan trọng trong trao đổi điện tử. Nó là một yếu tố kiểm soát quá trình tổng hợp DNA. Các tiến trình có hiệu quả cho phép các cơ thể sống vận chuyển và dự trữ nguyên tố kém hoà tan nhưng có tính hoạt động cao này.
+
+Sắt là một thành phần quan trọng, sắt có tác dụng trong tổng hợp hemoglobin (chất vận chuyển oxy cho các tế bào trong cơ thể) và myoglobin (chất dự trữ oxy cho cơ thể). Ngoài ra sắt còn tham gia vào thành phần một số enzyme oxy hoá khử như catalase, peroxydase và các cytochrome ( những chất xúc tác sinh học quan trọng trong cơ thể). Nó đóng vai trò quan trọng trong việc sản xuất ra năng lượng oxy hoá, vận chuyển oxy, hô hấp của ty lạp thể và bất hoạt các gốc oxy có hại. Đặc biệt đối với những phụ nữ mang thai, sắt giúp tạo nên một thai kỳ khỏe mạnh và an toàn. Để đảm bảo đủ nhu cầu sắt trong thời kỳ mang thai, cơ thể người phụ nữ phải có lượng sắt dự trữ, ít nhất là 300 mg trước khi mang thai.
+
+Một hậu quả khác của thiếu sắt là nguy cơ hấp thu chì từ đường tiêu hóa sẽ cao, gây ra ngộ độc chì cho cơ thể. Môi trường sống ở Việt Nam hiện rất ô nhiễm, khói bụi có hàm lượng chì rất cao. Do đó những đứa trẻ thiếu sắt thì nguy cơ ngộ độc chì rất cao, dễ tổn thương cho hệ thống tái tạo máu và hệ thần kinh trung ương. Đối tượng chính hay bị thiếu sắt thường gặp nhất ở phụ nữ, đặc biệt là ở phụ nữ có thai và trẻ em. Nguyên nhân là do cơ thể không hấp thu sắt kém, hay do nhiễm giun sán, dị ứng, kinh nguyệt… hoặc nhu cầu cơ thể quá cao trong một số giai đoạn tăng trưởng nhanh và hồi phục sau khi bệnh. Do đó thiếu sắt sẽ gây ra tình trạng thiếu máu thiếu sắt và ảnh hưởng đến hoạt động chuyển hoá của tế bào do thiếu hụt các men chứa sắt. Ngược lại quá tải sắt trong cơ thể cũng gây ra ứ đọng sắt tại các mô như tim, gan, tuyến nội tiết..... dẫn đến rối loạn trầm trọng chức năng các cơ quan này.
+
+Thừa sắt hay Hemochromatosis là một rối loạn gây ra bởi sự hấp thu quá nhiều sắt từ thực phẩm mà bạn tiêu thụ, dẫn đến tập trung quá nhiều sắt trong máu. Nó có thể gây ra nhiều vấn đề sức khỏe nghiêm trọng khi cơ thể bạn không có các để loại bỏ lượng sắt dư thừa. Sắt dư thừa sẽ tích lũy lại ở: gan, tim, tụy và các khớp.
+
+Với loại khẩu phần có giá trị sinh học sắt cao, khoảng 15% sắt được hấp thu (khẩu phần có lượng thịt hoặc cá > 90g/ngày hoặc lượng vitamin C > 75 mg/ngày).
+
+```{r}
+DT::datatable(data.frame(Male = c(7.9, 7.9, 7.9, NA, 7.3, NA,NA,NA), Female = c(17.4, 17.4, 6.7, 17.4, 6.3, "+10", 8.9, 17.4)),
+              rownames = c("20-29 tuổi","30-49 tuổi", "50-69 tuổi", "> 50 tuổi có kinh nguyệt","> 70 tuổi", "Có thai", "Cho con bú","Sau mãn kinh"))
+```
+
+Row {data-width=650}
+-----------------------------------------------------------------------
+
+### Natri
+
+Tồn tại trong hơn 80 dạng khác nhau, Natri không chịu sự tác động của nhiệt độ. Nó có vai trò điều hòa các chất dịch trong cơ thể và truyền xung điện.
+
+Chúng ta thường nghĩ Natri được cung cấp cho cơ thể từ muối. Thực chất, Natri còn có ở nhiều nguồn thực phẩm khác. Natri (hay Sodium) trong cơ thể là chất điện giải, dạng ion. Thiếu vắng Natri, các chức năng của cơ thể sẽ suy giảm nghiêm trọng. Mỗi đối tượng, lứa tuổi, sẽ cần một lượng Natri khác nhau với những tác dụng riêng biệt. 
+
+Natri vừa là chất điện giải, vừa giúp cân bằng nồng độ chất lỏng, giữ nước trong cơ thể. Ngoài ra, Natri còn kết hợp với các ion khác trong cơ thể, tạo ra sự cân bằng pH. Độ pH trong cơ thể tốt nhất nên đạt từ 7,35 đến 7,5 (trung – kiềm tính). Natri đóng vai trò ổn định huyết áp, hỗ trợ dẫn truyền xung thần kinh và cơ. Do vậy, khi cơ thể có dấu hiệu co cơ, chuột rút, đầu óc thiếu minh mẫn… rất có thể chúng ta đang thiếu Natri.
+
+Khi thiếu Natri, cơ thể chúng ta có thể xảy ra các hiện tượng như: Tụt huyết áp, nhức đầu, chóng mặt, nôn mửa, chuột rút, rối loạn tiêu hóa… Nếu không được cung cấp kịp thời lượng Natri cần thiết, rất có thể chúng ta sẽ bị sút cân, thậm chí hôn mê sâu và dẫn đến tử vong.
+
+Natri dư thừa tích tụ trong các bộ phận ngoại vi của cơ thể có thể dẫn đến phù nề. Nó tác động mạnh mẽ lên não bộ, dẫn đến tình trạng sưng mô thần kinh, phù não. Natri dâng cao cũng có thể gây ra nhiễm trùng phổi và dẫn đến hậu quả xấu.
+
+Người trưởng thành nên cung cấp đủ 2.000mg – 2.400mg Natri mỗi ngày (tương đương khoảng 5g muối). Tuy nhiên, trong khẩu phần ăn mỗi ngày, chúng ta ăn rất nhiều gạo, thịt, rau quả và uống nước. Đó cũng là nguồn cung cấp Natri rất lớn cho cơ thể.
+
+### Kali
+
+Kali là khoáng chất với tỷ lệ chiếm nhiều thứ ba trong cơ thể. Kali rất quan trọng trong việc điều chỉnh chất lỏng, gửi tín hiệu đến hệ thần kinh và điều chỉnh các cơn co cơ bắp. Khoảng 98% kali trong cơ thể được tìm thấy trong các tế bào. Trong đó, 80% được tìm thấy trong tế bào cơ, 20% còn lại có ở trong xương, gan và hồng cầu. Khi ở trong cơ thể, khoáng chất này hoạt động như một chất điện giải. Khi ở trong nước, chúng hòa tan thành các ion có khả năng dẫn điện. Các ion kali mang điện tích dương. Cơ thể chúng ta sử dụng loại điện này để kiểm soát một loạt các quá trình, bao gồm quá trình cân bằng chất lỏng, dẫn truyền tín hiệu thần kinh và co thắt cơ bắp. Do đó, nồng độ chất điện giải quá thấp hoặc quá cao đều có thể ảnh hưởng đến nhiều chức năng quan trọng trong cơ thể.
+
+Cơ quan quản lý thực phẩm ở nhiều quốc gia đã giới hạn mức tiêu thụ kali trong các chất bổ sung không kê đơn ở mức 99 mg, thấp hơn nhiều so với một khẩu phần thực phẩm giàu kali như đã trình bày ở trên. Giới hạn 99 mg được đề ra là do kết quả từ nhiều nghiên cứu cho thấy liều cao kali từ các chất bổ sung có thể làm hỏng ruột, thậm chí dẫn đến tử vong do rối loạn nhịp tim. Tuy nhiên, với những người bị thiếu kali, bác sĩ có thể chỉ định các thuốc bổ sung liều cao phù hợp.
+
+Row {data-width=650}
+-----------------------------------------------------------------------
+
+### Canxi
+
+Canxi là một loại khoáng chất có vai trò rất quan trọng trong cơ thể người. Trong cơ thể Canxi chiếm 1,5 - 2% trọng lượng cơ thể người, 99%  lượng canxi tồn tại trong xương, răng, móng và 1% trong máu. Canxi kết hợp với phospho là thành phần cấu tạo cơ bản của xương và răng, làm cho xương và răng chắc khỏe.
+
+Canxi tồn tại trong cơ thể dưới hai dạng:
+
+- Canxi trong xương: cấu tạo thành phần hoá học của xương bao gồm: 25% nước, 20% protein, 5% lipit, một lượng nhỏ glycosaminoglycan và gần 50% là chất khoáng, trong đó hầu hết chất khoáng là muối canxi.
+
+- Canxi ngoài xương: Lượng canxi trong dịch ngoài tế bào và tổ chức mềm ở người bình thường không quá 10 g. Canxi ngoài xương cần thiết cho các hoạt động thần kinh cơ và quá trình đông máu.
+
+Đối với người lớn
+
+- Canxi giúp xương chắc khỏe, phòng ngừa những bệnh loãng xương, giảm tình trạng đau nhức và khó khăn trong vận động, làm nhanh lành các vết nứt gãy trên xương.
+
+- Canxi còn cần thiết cho hoạt động của tim. Nếu cơ thể thiếu canxi kéo dài,  cơ tim sẽ co bóp yếu, khi làm việc dễ mệt và hay vã mồ hôi.
+
+- Ngoài ra, canxi có vai trò quan trọng đối với hệ thần kinh. Ở người già thiếu canxi dễ bị suy nhược thần kinh, trí nhớ kém, tinh thần không ổn định, đau đầu,…
+
+Nhu cầu canxi của cơ thể được xác định dựa vào mối tương quan với Phospho. Đối với mọi lứa tuổi, tỷ số Ca/P mong muốn là tối thiểu là > 0.8, tuy nhiên tỷ số này tốt nhất là 1-1.5, đặc biệt đối với trẻ em. Nhu cầu dinh dưỡng khuyến nghị về canxi (mg/ngày) theo tuổi, giới và tình trạng sinh lý như sau:
+
+- Nam giới trưởng thành: 19-49 tuổi 700 mg/ ngày, 50 tuổi trở lên 1000 mg/ ngày.
+- Nữ giới trưởng thành: 19-49 tuổi 700 mg/ ngày, 50 tuổi trở lên 1000 mg / ngày, mang thai và cho con bú 1000 mg/ ngày.
+
+### Phospho - Nguyến tố tạo Acid
+
+Phospho chiếm từ 0.8 đến 1.1% trọng lượng cơ thể và là phần quan trọng của mỗi tế bào sống.
+
+Phospho là một chất có vai trò quan trọng trong nhiều các quá trình chuyển hóa của cơ thể, chẳng hạn như quá trình sinh tổng hợp các chất cơ bản của cơ thể như protein, carbohydrate, phospholipid màng tế bào, DNA, RNA, trong sản sinh năng lượng (dưới dạng ATP), co cơ, điều hòa nhịp tim, dẫn truyền thần kinh, sự tạo xương, duy trì sự cân bằng acid-base của cơ thể, …
+
+Phospho đi vào cơ thể qua chế độ ăn uống. Phospho có trong nhiều loại thực phẩm và được dễ dàng hấp thu bởi ruột. Khoảng 70-80% Phospho của cơ thể kết hợp với canxi để giúp hình thành xương và răng, 10% được thấy trong cơ bắp và khoảng 1% ở trong mô thần kinh. Phần còn lại được thấy trong các tế bào khắp cơ thể, nơi chúng được sử dụng chủ yếu để lưu trữ năng lượng.
+
+Sự thiếu hụt phospho có thể gặp trong suy dinh dưỡng, kém hấp thu, mất cân bằng acid-base, tăng canxi máu, và các rối loạn ảnh hưởng đến chức năng thận. Sự thừa phospho (tăng phospho máu) có thể gặp trong tăng tiêu thụ các khoáng chất, giảm canxi máu và rối loạn chức năng thận.
+
+Sự thiếu hụt phospho mức độ nhẹ đến vừa phải thường không có bất kỳ triệu chứng nào. Khi thiếu hụt phospho nặng, các triệu chứng có thể bao gồm yếu cơ và nhầm lẫn. Sự dư thừa phospho nặng có thể gây ra các triệu chứng tương tự như được thấy khi mức độ canxi thấp, bao gồm đau cơ, bối rối, có khi co giật.
+
+Ở người lớn thì lượng phospho và canxi ngang nhau (trong cơ thể) còn ở trẻ con thường có số lượng phospho nhiều hơn canxi từ 1 đến 1.1 lần. Nhu cầu về phospho thông thường cho mọi người cũng ngang với nhu cầu về canxi và protein được cung cấp bằng những thực phẩm như nhau; do vậy ăn uống để cung cấp đầy đủ những nguyên tố này, cũng như cung cấp đủ phospho cho cơ thể.
+
+Row {data-width=650}
+-----------------------------------------------------------------------
+
+### Beta Carotene
+
+Beta caroten là một tenpen. Nó là một trong hơn 600 loại carotenoid tồn tại trong tự nhiên. Carotenoid là những chất có màu vàng, cam và hơi pha đỏ. Nó có nhiều trong thực vật mà không hề xuất hiện trong động vật cũng như các thực phẩm có nguồn gốc động vật. Carotenoid, một số loại được chuyển hoá thành vitamin A trong cơ thể nên đôi khi nó còn được gọi với cái tên quen thuộc hơn là tiền chất của vitamin A trong thực vật. Bởi vitamin A thì chỉ có trong động vật nên đây cũng là một nguồn bổ sung tốt vitamin A cho những người ăn thuần chay. Beta caroten là tiền chất của vitamin A nhưng nó không chỉ có vai trò như những gì mà vitamin A có. Nó còn sở hữu những hoạt dụng sinh học rộng rãi khác độc lập với loại vitamin này.
+
+Là tiền chất của vitamin A, Beta Carotene là nguồn cung cấp vitamin A tự nhiên, dồi dào cho cơ thể. Vitamin A đóng vai trò cho khả năng của thị giác và sự phát triển của trẻ em nên nó cũng có tác dụng làm mắt thêm sáng, nhìn thêm tinh. Nó tốt cho trẻ em và người cao tuổi. Nó lại còn có chức năng làm lành mạnh hoá hệ miễn dịch nên tốt cho người mới ốm dậy. Beta Caroten còn làm hết sạch những nguyên tử ôxy tự do đang dư thừa điện tử trong da. Đây là những nguyên tử được hình thành ở da khi da bị phá huỷ bởi tia cực tím. Nó làm da bị lão hoá, nhăn nhúm, thô ráp, xù xì, không khoẻ mạnh. Beta Caroten làm hết những tác hại này do nó làm hết những gốc điện tử tự do. Nó xứng đáng được thêm vào trong công thức làm đẹp.
+
+Bên cạnh đó, Beta Caroten còn sở hữu trong mình một khả năng chống ôxy hoá ưu việt vì nó có tác dụng khử hết gốc tự do dư thừa trong cơ thể. Gốc tự do làm hư hỏng màng tế bào nghiêm trọng, nó làm tổn thương các bào quan, nó liên quan chặt chẽ với quá trình lão hoá, xuống cấp của nhan sắc, tuổi trẻ, nó còn là nguyên nhân gây ra nhiều căn bệnh chưa có lời giải chính thức như ung thư. Vì thế, có Beta Caroten chúng ta có thể tránh được tất cả những thứ này, bảo vệ màng tế bào, chậm lại lão hoá, ngăn ngừa ung thư.
+
+Ở một số công trình nghiên cứu, người ta thấy beta caroten làm vững mạnh hoá một số phản ứng miễn dịch. Vì thế mà khi thiếu hụt hoạt chất này, các phản ứng miễn dịch trở nên kém hoạt hoá. Hoặc khả năng chống nhiễm khuẩn của cơ thể sẽ không còn mạnh nữa. Ví dụ như khả năng làm tăng số lượng tế bào bạch cầu và tăng sức mạnh của tế bào giết tự nhiên. Thiếu hụt beta caroten có thể làm cho da của bạn dễ bị tổn thương hơn bởi ánh nắng mặt trời. Vì thế mà trong các mỹ phẩm bảo vệ da, người ta cũng thường xuyên sử dụng beta caroten tự nhiên. Một số loại bệnh ung thư như ung thư phổi, ung thư dạ dày sẽ không giảm được nhiều nguy cơ nếu trong chế độ ăn bị thiếu hụt hàm lượng beta caroten. Đó là vì beta caroten làm giảm tổng hợp các dấu ấn ung thư trong chu trình phát triển của các loại ung thư này. Không những thế, nó còn làm giảm nguy cơ của bệnh tim mạch.
+
+Theo những khuyến cáo hiện tại, chúng ta không nên bổ sung lượng beta caroten quá lượng quy định của vitamin A. Liều quy định của vitamin A là 900mcg cho nam và 700mcg cho nữ. Và liều lượng an toàn của beta caroten tương đương là khoảng 10 mg trong một ngày. Còn nếu chúng ta bổ sung beta caroten dưới dạng tự nhiên trong thực phẩm thì chúng ta yên tâm là sẽ không sợ bị quá liều. Chỉ có một điều lưu ý, beta caroten được hấp thu chủ yếu ở ruột non. Nó rất cần có sự hỗ trợ của dầu, mỡ hoặc chất béo. Tốt nhất là chúng ta nên chế biến thành các món xào, nấu có dầu thì lượng beta caroten sẽ được hấp thu tối đa. 
+
+### Vitamin A
+
+Vitamin A là một chất dinh dưỡng thiết yếu cho con người. Nó không tồn tại dưới dạng một hợp chất duy nhất, mà dưới một vài dạng. Vitamin A có ở trong nhiều loại thực phẩm, nó tồn tại trong thực phẩm có nguồn gốc động vật dưới dạng retinol, còn trong thực vật dưới dạng caroten (tiền vitamin A).
+
+Vitamin A tham gia vào chức năng thị giác của mắt, đó là khả năng nhìn thấy trong điều kiện ánh sáng yếu. Khi thiếu vitamin A khả năng nhìn thấy của mắt lúc ánh sáng yếu sẽ bị giảm, hiện tượng này thường xuất hiện vào lúc trời nhá nhem tối nên được gọi là **Quáng gà**. Quáng gà là biểu hiện sớm về lâm sàng của thiếu vitamin A. Vitamin A cần thiết để bảo vệ sự toàn vẹn của giác mạc và các tổ chức biểu mô dưới da, khí quản, các tuyến nước bọt, ruột non, tinh hoàn... Khi thiếu vitamin A, sản xuất các niêm mạc giảm, da bị khô và xuất hiện sừng hóa, biểu hiện này thường thấy ở mắt, lúc đầu là khô kết mạc rồi tổn thương đến giác mạc. Các tế bào biểu mô bị tổn thương cùng với sự giảm sút sức đề kháng tạo điều kiện cho vi khuẩn xâm nhập. Vitamin A tham gia vào các quá trình đáp ứng miễn dịch của cơ thể, làm tăng sức đề kháng của cơ thể đối với bệnh tật. Nếu thiếu vitamin A, trẻ em dễ mắc các bệnh nhiễm khuẩn và khi bị mắc bệnh, thời gian bệnh kéo dài hơn, nguy cơ tử vong cao hơn.
+
+Với nam trưởng thành, khuyến nghị 600 mcg/ngày. Với nữ từ 19-60 tuổi khuyến nghị 500 mcg/ngày, trên 60 tuỏi 600 mcg/ngày, có thai 800 mcg/ngày, cho con bú 850 mcg/ngày.
+
+Row {data-width=650}
+-----------------------------------------------------------------------
+
+### Vitamin B1
+
+Thiamin là một chất dinh dưỡng thiết yếu mà tất cả các mô của cơ thể cần để hoạt động đúng. Thiamin là vitamin B đầu tiên mà các nhà khoa học phát hiện ra. Đây là lý do tại sao tên của nó mang số 1. Giống như các vitamin B khác, thiamin tan trong nước và giúp cơ thể biến thức ăn thành năng lượng. Sự thiếu hụt thiamin có thể ảnh hưởng đến nhiều chức năng khác nhau của cơ thể bạn, bao gồm cả những chức năng của: Hệ thần kinh; Tim và Não. Hiện nay, tình trạng thiếu thiamin thường ít xảy ra. Thiếu thiamin hiếm gặp ở người lớn có sức khỏe tốt. Tình trạng thiếu thiamin thường xảy ra ở những người có hệ miễn dịch suy giảm. Các tác nhân làm giảm nồng độ thiamine bao gồm: nghiện rượu, bệnh Crohn, chán ăn. Những người đang chạy thận nhân tạo hoặc dùng thuốc lợi tiểu cũng có nguy cơ bị thiếu thiamine. Thuốc lợi tiểu được kê toa cho người bị suy tim xung huyết, có thể khiến thiamine ra khỏi cơ thể. Hoạt động của tim dựa vào thiamine để hoạt động đúng quy trình. Những người dùng digoxin và phenytoin cũng nên cẩn thận với các tác dụng của thuốc.
+
+Thiếu thiamine có thể dẫn đến hai vấn đề sức khỏe chính: hội chứng beriberi và Wernicke-Korsakoff. **Beriberi** ảnh hưởng đến hơi thở, cử động mắt, chức năng tim. Nó gây ra bởi sự tích tụ axit pyruvic trong máu, đây là tác dụng phụ khiến cơ thể bạn không thể biến thức ăn thành năng lượng. **Hội chứng Wernicke-Korsakoff** về mặt kỹ thuật là hai rối loạn khác nhau. **Bệnh Wernicke** ảnh hưởng đến hệ thống thần kinh và gây suy giảm thị lực, thiếu sự phối hợp cơ bắp và suy giảm tinh thần. Nếu bệnh của Wernicke không được điều trị, nó có thể dẫn đến hội chứng Korsakoff. **Hội chứng Korsakoff** làm suy yếu vĩnh viễn các chức năng bộ nhớ trong não. Một trong hai bệnh có thể được điều trị bằng cách tiêm thiamin hoặc bổ sung. Điều này có thể giúp cải thiện những vấn đề về tầm nhìn và cơ bắp. Tuy nhiên, thiamin không thể khắc phục tổn thương bộ nhớ vĩnh viễn do hội chứng Korsakoff gây ra.
+
+Thiamin (vitamin B1) được sử dụng để ngăn ngừa hoặc điều trị lượng vitamin B1 thấp ở những người không có đủ vitamin từ chế độ ăn uống của họ. Hầu hết những người ăn chế độ ăn bình thường không cần thêm vitamin B1. Tuy nhiên, một số điều kiện (như nghiện rượu, xơ gan, các vấn đề về dạ dày, ruột) có thể gây ra mức độ vitamin B1 thấp.
+
+Lượng Vitamin B1 cần cung cấp không cao về số lượng nhưng phải được cung cấp hàng ngày để thỏa mãn nhu cầu cần thiết vì Vitamin B1 không dự trữ được trong cơ thể. Nhu cầu về vitamin B1 phụ thuộc vào các điều kiện khác nhau như trạng thái sinh lý của cơ thể, chế độ thức ăn, làm việc… Trung bình người cần từ 1 – 3 mg vitamin B1 trong 24h.
+
+### Vitamin C
+
+Vitamin C là một trong 13 loại Vitamin thiết yếu đối với cơ thể, có vai trò quan trọng trong quá trình sinh tổng hợp collagen, thúc loại vitamin này từ thực phẩm hàng ngày hoặc sản phẩm tổng hợp phù hợp với nhu cầu của cơ thể. Các nghiên cứu y học cho thấy, vitamin C có vai trò quan trọng với sự hoạt động của xương, cơ bắp, mạch máu và các mô liên kết. Các chế phẩm vitamin này giúp điều trị mệt mỏi do cúm hoặc sau bệnh, tăng sức đề kháng cơ thể, mau lành vết thương. Vitamin C hỗ trợ tăng khả năng hấp thụ sắt, tăng cường hệ miễn dịch, ngừa giảm thị lực tuổi già, làm trống đại tràng, loạn nhịp tim, ngăn ngừa nhiễm trùng đường hô hấp do tập thể dục cường độ cao, ngừa cháy nắng, giảm ban đỏ trên da, kiểm soát bệnh thiếu máu tán huyết, tăng hiệu quả của hoạt động thể chất, ngăn ngừa lão hóa.
+
+Với người trưởng thành, nhu cầu thường 70 mg/ngày, với phụ nữ mang thai và cho con bú thì 80-90 mg/ngày.
+
+Khi sử dụng bổ sung vitamin C, cần lưu ý:
+
+- Uống nhiều nước, từ 1.5 - 2.5 lít nước mỗi ngày.
+
+- Nếu sử dụng dạng viên nhai C, phải nhai hoàn toàn trước khi nuốt.
+
+- Không nghiền nát, nhai hoặc đập vỡ viên uống, hãy nuốt trọn vẹn thuốc.
+
+- Sử dụng dụng cụ đo để đo liều lượng khi uống vitamin dạng lỏng hoặc siro.
+
+- Nếu bị thiếu vitamin C hoặc đang dùng vitamin C liều cao, không ngừng đột ngột vì có thể gây chảy máu nướu răng, xuất hiện điểm đỏ hoặc xanh dương quanh nang lông, cơ thể mệt mỏi.
+
+Thời điểm tốt nhất để cơ thể hấp thụ tốt loại vitamin này là khi đói bụng. Do đó, sử dụng chế phẩm bổ sung vào buổi sáng, trước khi ăn 30 phút hoặc sau khi ăn 2 giờ. Loại vitamin này dễ dàng hòa tan vào nước giúp cơ thể hấp thụ. Nếu bổ sung dư thừa, cơ thể không lưu trữ mà đào thải qua đường nước tiểu.
+
+
